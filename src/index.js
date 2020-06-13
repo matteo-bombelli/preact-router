@@ -246,9 +246,14 @@ class Router extends Component {
 	}
 }
 
-const Link = (props) => (
-	createElement('a', assign({ onClick: handleLinkClick }, props))
-);
+const Link = (props) => {
+	if (customHistory && customHistory.createHref && customHistory.createHref.bind 
+	    && props && props.href && props.href[0]==="/") {
+		props.href = customHistory.createHref({pathname:props.href});
+		return createElement('a', assign({ onClick: handleLinkClick }, props))
+	}
+	return createElement('a', assign({ onClick: handleLinkClick }, props))
+};
 
 const Route = props => createElement(props.component, props);
 
