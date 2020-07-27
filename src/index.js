@@ -9,12 +9,16 @@ const subscribers = [];
 
 const EMPTY = {};
 
+const isHashRouting = () =>{
+    return (`${customHistory.createHref({pathname:"/"})} `[0] === "#")
+}
+
 function setUrl(url, type='push') {
 	if (customHistory && customHistory[type]) {
 		customHistory[type](url);
 	}
-	else if (typeof history!=='undefined' && history[type+'State']) {
-		history[type+'State'](null, null, url);
+	else if (typeof history!=='undefined' && history[`${type}State`]) {
+		history[`${type}State`](null, null, url);
 	}
 }
 
@@ -40,6 +44,12 @@ function route(url, replace=false) {
 		replace = url.replace;
 		url = url.url;
 	}
+
+    // push if it is hash routing
+    if(isHashRouting()){
+        setUrl(url, replace ? 'replace' : 'push');
+        return routeTo(url);
+    }
 
 	// only push URL into history if we can handle it
 	if (canRoute(url)) {
@@ -75,16 +85,32 @@ function routeTo(url) {
 
 
 function routeFromLink(node) {
+    console.log("routeFromLink")
 	// only valid elements
 	if (!node || !node.getAttribute) return;
+
+    console.log("routeFromLink 1")
 
 	let href = node.getAttribute('href'),
 		target = node.getAttribute('target');
 
+    console.log("routeFromLink 2")
+
 	// ignore links with targets and non-path URLs
+    console.log("obj", {href, target});
+    console.log("issues", [
+        !href,
+        (!href && !href.match(/^\//g)),
+        (target && !target.match(/^_?self$/i))
+    ]);
 	if (!href || !href.match(/^\//g) || (target && !target.match(/^_?self$/i))) return;
 
+    console.log("routeFromLink 3")
+
 	// attempt to route, if no match simply cede control to browser
+
+    console.log("routeFromLink 4")
+
 	return route(href);
 }
 
@@ -92,6 +118,12 @@ function routeFromLink(node) {
 function handleLinkClick(e) {
 	if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || e.button!==0) return;
 	routeFromLink(e.currentTarget || e.target || this);
+	return prevent(e);
+}
+
+const handleLinkClickHash = (url)=>(e)=>{
+	if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || e.button!==0) return;
+	route(url);
 	return prevent(e);
 }
 
@@ -138,7 +170,6 @@ function initEventListeners() {
 	}
 	eventListenersInitialized = true;
 }
-
 
 class Router extends Component {
 	constructor(props) {
@@ -229,6 +260,14 @@ class Router extends Component {
 		let current = active[0] || null;
 
 		let previous = this.previousUrl;
+
+        console.log("global values", {
+            customHistory,
+            ROUTERS,
+            subscribers, 
+            EMPTY
+        })
+
 		if (url!==previous) {
 			this.previousUrl = url;
 			if (typeof onChange==='function') {
@@ -247,15 +286,35 @@ class Router extends Component {
 }
 
 const Link = (props) => {
-	if (customHistory && customHistory.createHref && customHistory.createHref.bind 
-	    && props && props.href && props.href[0]==="/") {
-		props.href = customHistory.createHref({pathname:props.href});
-		return createElement('a', assign({ onClick: handleLinkClick }, props))
-	}
 	return createElement('a', assign({ onClick: handleLinkClick }, props))
+};
+
+const HashLink = (props) => {
+    // fix eventually malcostructed urls
+    const urlFixed = (
+        props && 
+        props.href && 
+        props.href[0] && 
+        props.href[0] === "/"
+    )?
+        `${props.href}`.replace("#", ""):
+        `/${props.href?props.href:""}`.replace("#", "");
+    
+    const newProps = Object.assign(
+        {}, 
+        props, 
+        { 
+            onClick: handleLinkClickHash(urlFixed), 
+            href: customHistory.createHref({pathname:urlFixed}) 
+        }
+    )
+	return createElement(
+        'a', 
+        newProps
+    )
 };
 
 const Route = props => createElement(props.component, props);
 
-export { subscribers, getCurrentUrl, route, Router, Route, Link, exec };
+export { subscribers, getCurrentUrl, route, Router, Route, Link, HashLink, exec };
 export default Router;
